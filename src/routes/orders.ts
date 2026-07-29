@@ -2,6 +2,7 @@ import { Router } from "express";
 import z from "zod";
 import { supabaseAdmin } from "../lib/supabaseClient.js";
 import { findOrCreateCustomer } from "../services/customers.js";
+import { buildWhatsappPayload } from "../services/whatsappPayload.js";
 
 const orderItemSchema = z.object({
   name: z.string().min(1),
@@ -37,9 +38,6 @@ function calculateTotal(items: { price: number; qty: number }[]): number {
 export const ordersRouter = Router();
 
 ordersRouter.post("/", async (req, res) => {
-  //   console.log("Received order request:", req.body);
-  //   res.json({ received: req.body });
-
   const parsed = createOrderSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -62,6 +60,35 @@ ordersRouter.post("/", async (req, res) => {
     customerId = await findOrCreateCustomer(customer_phone);
   }
 
+  const { data: branch, error: branchError } = await supabaseAdmin
+    .from("branches")
+    .select("id, restaurant_id, restaurants(whatsapp_number)")
+    .eq("id", branch_id)
+    .single();
+
+  if (branchError || !branch) {
+    return res.status(404).json({ error: "Branch not found" });
+  }
+
+  const restaurant = Array.isArray(branch.restaurants)
+    ? branch.restaurants[0]
+    : branch.restaurants;
+
+  if (!restaurant?.whatsapp_number) {
+    return res
+      .status(500)
+      .json({ error: "Restaurant has no WhatsApp number configured" });
+  }
+
+  const { message, url } = buildWhatsappPayload({
+    restaurantWhatsappNumber: restaurant.whatsapp_number,
+    orderType: order_type,
+    tableNumber: table_number,
+    deliveryAddress: delivery_address,
+    items,
+    totalPrice,
+  });
+
   const { data: order, error } = await supabaseAdmin
     .from("orders")
     .insert({
@@ -72,6 +99,7 @@ ordersRouter.post("/", async (req, res) => {
       delivery_address: order_type === "delivery" ? delivery_address : null,
       items,
       total_price: totalPrice,
+      whatsapp_payload: message,
     })
     .select()
     .single();
@@ -80,7 +108,5 @@ ordersRouter.post("/", async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  res.status(201).json({ order });
-
-  // console.log("Valid order received", parsed.data);
+  res.status(201).json({ order, whatsapp_url: url });
 });

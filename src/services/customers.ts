@@ -16,7 +16,7 @@ export async function findOrCreateCustomer(phone: string): Promise<string> {
   }
 
   const { data: created, error: createError } = await supabaseAdmin
-    .from("cusomers")
+    .from("customers")
     .insert({ phone_number: phone })
     .select("id")
     .single();
