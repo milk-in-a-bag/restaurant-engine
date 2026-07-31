@@ -27,3 +27,17 @@ export async function findOrCreateCustomer(phone: string): Promise<string> {
 
   return created.id;
 }
+
+export async function updateCustomerName(
+  customerId: string,
+  name: string,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("customers")
+    .update({ name })
+    .eq("id", customerId);
+
+  if (error) {
+    throw new Error(`Failed to update the customer name: ${error}`);
+  }
+}

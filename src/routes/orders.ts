@@ -1,35 +1,8 @@
 import { Router } from "express";
-import z from "zod";
 import { supabaseAdmin } from "../lib/supabaseClient.js";
 import { findOrCreateCustomer } from "../services/customers.js";
 import { buildWhatsappPayload } from "../services/whatsappPayload.js";
-
-const orderItemSchema = z.object({
-  name: z.string().min(1),
-  price: z.number().nonnegative(),
-  qty: z.number().positive(),
-});
-
-const createOrderSchema = z
-  .object({
-    branch_id: z.string().uuid(),
-    order_type: z.enum(["dine_in", "delivery"]),
-    table_number: z.string().optional(),
-    delivery_address: z.string().optional(),
-    customer_phone: z.string().min(7).optional(),
-    items: z.array(orderItemSchema).min(1),
-  })
-  .refine(
-    (data) =>
-      data.order_type === "dine_in"
-        ? !!data.table_number
-        : !!data.delivery_address,
-    {
-      message:
-        "table_number is required for dine_in orders, delivery_address is required for delivery orders",
-      path: ["order_type"],
-    },
-  );
+import { createOrderSchema } from "../schemas/orderSchemas.js";
 
 function calculateTotal(items: { price: number; qty: number }[]): number {
   return items.reduce((sum, item) => sum + item.price * item.qty, 0);
