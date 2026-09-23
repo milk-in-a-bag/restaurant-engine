@@ -1,11 +1,15 @@
-import { OrderItem } from "../schemas/orderSchemas.js";
+interface PricedOrderItem {
+  name: string;
+  price: number;
+  qty: number;
+}
 
 interface BuildPayloadParams {
   restaurantWhatsappNumber: string;
   orderType: "dine_in" | "delivery";
   tableNumber?: string;
   deliveryAddress?: string;
-  items: OrderItem[];
+  items: PricedOrderItem[];
   totalPrice: number;
 }
 

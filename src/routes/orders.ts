@@ -2,6 +2,7 @@ import { Router } from "express";
 import { supabaseAdmin } from "../lib/supabaseClient.js";
 import { findOrCreateCustomer } from "../services/customers.js";
 import { buildWhatsappPayload } from "../services/whatsappPayload.js";
+import { resolveOrderItems } from "../services/cmsMenu.js";
 import { createOrderSchema } from "../schemas/orderSchemas.js";
 
 function calculateTotal(items: { price: number; qty: number }[]): number {
@@ -25,13 +26,6 @@ ordersRouter.post("/", async (req, res) => {
     delivery_address,
     customer_phone,
   } = parsed.data;
-  const totalPrice = calculateTotal(items);
-
-  let customerId: string | undefined;
-
-  if (customer_phone) {
-    customerId = await findOrCreateCustomer(customer_phone);
-  }
 
   const { data: branch, error: branchError } = await supabaseAdmin
     .from("branches")
@@ -53,12 +47,27 @@ ordersRouter.post("/", async (req, res) => {
       .json({ error: "Restaurant has no WhatsApp number configured" });
   }
 
+  const resolved = await resolveOrderItems(items, branch.restaurant_id);
+
+  if (!resolved.success) {
+    return res.status(400).json({ error: resolved.error });
+  }
+
+  const resolvedItems = resolved.items;
+  const totalPrice = calculateTotal(resolvedItems);
+
+  let customerId: string | undefined;
+
+  if (customer_phone) {
+    customerId = await findOrCreateCustomer(customer_phone);
+  }
+
   const { message, url } = buildWhatsappPayload({
     restaurantWhatsappNumber: restaurant.whatsapp_number,
     orderType: order_type,
     tableNumber: table_number,
     deliveryAddress: delivery_address,
-    items,
+    items: resolvedItems,
     totalPrice,
   });
 
@@ -70,7 +79,7 @@ ordersRouter.post("/", async (req, res) => {
       order_type,
       table_number: order_type === "dine_in" ? table_number : null,
       delivery_address: order_type === "delivery" ? delivery_address : null,
-      items,
+      items: resolvedItems,
       total_price: totalPrice,
       whatsapp_payload: message,
     })

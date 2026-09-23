@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 export const orderItemSchema = z.object({
-  name: z.string().min(1),
-  price: z.number().nonnegative(),
+  cms_item_id: z.string().min(1),
   qty: z.number().int().positive(),
 });
 
